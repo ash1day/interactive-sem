@@ -37,8 +37,8 @@ exports.isemDialogRenameVariable = {
     buttonPrimary: function () { return 'OK'; }
 };
 exports.isemGuiNewLatentVariable = {
-    defaultVariableName: function () { return '名称未設定'; },
-    label: function () { return '新規潜在変数'; }
+    defaultVariableName: function () { return '潜在変数'; },
+    label: function () { return '潜在変数追加'; }
 };
 exports.isemHeader = {
     title: function () { return '共分散構造分析'; }
