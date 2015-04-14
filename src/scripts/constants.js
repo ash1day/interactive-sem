@@ -1,0 +1,13 @@
+'use strict';
+var prefix = 'isem:';
+exports.ADD_EGM_HANDLERS = prefix + 'ADD_EGM_HANDLERS';
+exports.ADD_LATENT_VARIABLE = prefix + 'ADD_LATENT_VARIABLE';
+exports.ADD_RELATION = prefix + 'ADD_RELATION';
+exports.IMPORT_FILE = prefix + 'IMPORT_FILE';
+exports.REDRAW_DIAGRAM = prefix + 'REDRAW_DIAGRAM';
+exports.REMOVE_RELATION = prefix + 'REMOVE_RELATION';
+exports.RENAME_VARIABLE = prefix + 'RENAME_VARIABLE';
+exports.UPDATE_DIAGRAM = prefix + 'UPDATE_DIAGRAM';
+exports.DISABLE_VERTEX_DISPLAY = prefix + 'DISABLE_VERTEX_DISPLAY';
+exports.ENABLE_VERTEX_DISPLAY = prefix + 'ENABLE_VERTEX_DISPLAY';
+exports.TOGGLE_VERTEX_DISPLAY = prefix + 'TOGGLE_VERTEX_DISPLAY';
