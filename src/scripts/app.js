@@ -29,12 +29,7 @@ exports.viewsDir = {
  * @constructor
  * @ngInject
  */
-function RouteConfig($routeProvider, $locationProvider) {
-    // <any> hack so angular.d.ts does not support arg.
-    $locationProvider.html5Mode({
-        enabled: true,
-        requireBase: false
-    });
+function RouteConfig($routeProvider) {
     $routeProvider.when('/', { template: '<isem-screen-network-diagram isem-io-locale="$root.locale"></isem-screen-network-diagram>' }).otherwise({ redirectTo: '/' });
 }
 /**
