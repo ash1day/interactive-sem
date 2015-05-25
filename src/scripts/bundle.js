@@ -61,7 +61,7 @@
  * lodash:
  *   license: MIT
  *   author: John-David Dalton <john.david.dalton@gmail.com>
- *   maintainers: jdalton <john.david.dalton@gmail.com>, mathias <mathias@qiwi.be>, phated <blaine@iceddev.com>, kitcambridge <github@kitcambridge.be>
+ *   maintainers: jdalton <john.david.dalton@gmail.com>, mathias <mathias@qiwi.be>, phated <blaine@iceddev.com>, kitcambridge <github@kitcambridge.be>, d10 <demoneaux@gmail.com>
  *   contributors: John-David Dalton <john.david.dalton@gmail.com>, Blaine Bublitz <blaine@iceddev.com>, Kit Cambridge <github@kitcambridge.be>, Mathias Bynens <mathias@qiwi.be>
  * 
  * process:
@@ -687,9 +687,10 @@ var Renderer = (function (_super) {
         var solver = semjs.solver();
         var variableIndices = {};
         var variableIds = {};
-        var variables = graph.vertices().filter(function (u) {
+        var vertices = graph.vertices().filter(function (u) {
             return graph.get(u).enabled;
-        }).map(function (u, i) {
+        });
+        var variables = vertices.map(function (u, i) {
             variableIndices[u] = i;
             variableIds[i] = u;
             return graph.get(u);
@@ -711,15 +712,24 @@ var Renderer = (function (_super) {
         }).map(function (edge) {
             return [variableIndices[edge[0]], variableIndices[edge[1]]];
         });
-        var sigma = variables.map(function (_, i) {
+        var sigma = vertices.filter(function (u) {
+            return graph.outDegree(u) > 0;
+        }).map(function (u) {
+            var i = variableIndices[u];
             return [i, i];
+        });
+        var sigmaFixed = vertices.filter(function (u) {
+            return graph.outDegree(u) === 0;
+        }).map(function (u) {
+            var i = variableIndices[u];
+            return [i, i, 1];
         });
         var S = semjs.stats.corrcoef(variables.filter(function (d) {
             return !d.latent;
         }).map(function (d) {
             return d.data;
         }));
-        return solver(n, alpha, sigma, S).then(function (result) {
+        return solver(n, alpha, sigma, S, sigmaFixed).then(function (result) {
             log.debug(log.t(), __filename, '#calculate() solver then', result.attributes);
             result.alpha.forEach(function (path) {
                 var u = variableIds[path[0]];
@@ -30368,7 +30378,7 @@ module.exports.Dialog = require('./dist/dialog');
  * 
  */
 /**
- * bluebird build version 2.9.24
+ * bluebird build version 2.9.26
  * Features enabled: core, race, call_get, generators, map, nodeify, promisify, props, reduce, settle, some, cancel, using, filter, any, each, timers
 */
 !function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.Promise=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof _dereq_=="function"&&_dereq_;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof _dereq_=="function"&&_dereq_;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
@@ -30456,6 +30466,7 @@ Async.prototype.throwLater = function(fn, arg) {
 
 Async.prototype._getDomain = function() {};
 
+if (!true) {
 if (util.isNode) {
     var EventsModule = _dereq_("events");
 
@@ -30471,30 +30482,31 @@ if (util.isNode) {
         var descriptor =
             Object.getOwnPropertyDescriptor(EventsModule, "usingDomains");
 
-        if (!descriptor.configurable) {
-            process.on("domainsActivated", function() {
-                Async.prototype._getDomain = domainGetter;
-            });
-        } else {
-            var usingDomains = false;
-            Object.defineProperty(EventsModule, "usingDomains", {
-                configurable: false,
-                enumerable: true,
-                get: function() {
-                    return usingDomains;
-                },
-                set: function(value) {
-                    if (usingDomains || !value) return;
-                    usingDomains = true;
+        if (descriptor) {
+            if (!descriptor.configurable) {
+                process.on("domainsActivated", function() {
                     Async.prototype._getDomain = domainGetter;
-                    util.toFastProperties(process);
-                    process.emit("domainsActivated");
-                }
-            });
+                });
+            } else {
+                var usingDomains = false;
+                Object.defineProperty(EventsModule, "usingDomains", {
+                    configurable: false,
+                    enumerable: true,
+                    get: function() {
+                        return usingDomains;
+                    },
+                    set: function(value) {
+                        if (usingDomains || !value) return;
+                        usingDomains = true;
+                        Async.prototype._getDomain = domainGetter;
+                        util.toFastProperties(process);
+                        process.emit("domainsActivated");
+                    }
+                });
+            }
         }
-
-
     }
+}
 }
 
 function AsyncInvokeLater(fn, receiver, arg) {
@@ -31625,6 +31637,10 @@ var returner = function () {
 var thrower = function () {
     throw this;
 };
+var returnUndefined = function() {};
+var throwUndefined = function() {
+    throw undefined;
+};
 
 var wrapper = function (value, action) {
     if (action === 1) {
@@ -31641,6 +31657,8 @@ var wrapper = function (value, action) {
 
 Promise.prototype["return"] =
 Promise.prototype.thenReturn = function (value) {
+    if (value === undefined) return this.then(returnUndefined);
+
     if (wrapsPrimitiveReceiver && isPrimitive(value)) {
         return this._then(
             wrapper(value, 2),
@@ -31655,6 +31673,8 @@ Promise.prototype.thenReturn = function (value) {
 
 Promise.prototype["throw"] =
 Promise.prototype.thenThrow = function (reason) {
+    if (reason === undefined) return this.then(throwUndefined);
+
     if (wrapsPrimitiveReceiver && isPrimitive(reason)) {
         return this._then(
             wrapper(reason, 1),
@@ -34199,7 +34219,7 @@ var noAsyncScheduler = function() {
 if (_dereq_("./util.js").isNode) {
     var version = process.versions.node.split(".").map(Number);
     schedule = (version[0] === 0 && version[1] > 10) || (version[0] > 0)
-        ? global.setImmediate : process.nextTick;
+        ? function(fn) { global.setImmediate(fn); } : process.nextTick;
 
     if (!schedule) {
         if (typeof setImmediate !== "undefined") {
@@ -50624,12 +50644,12 @@ module.exports = "0.7.2-pre";
 (function (global){
 /**
  * @license
- * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
+ * Lo-Dash 2.4.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern -o ./dist/lodash.js`
  * Copyright 2012-2013 The Dojo Foundation <http://dojofoundation.org/>
  * Based on Underscore.js 1.5.2 <http://underscorejs.org/LICENSE>
  * Copyright 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <http://lodash.com/license>
+ * Available under MIT license <https://lodash.com/license>
  */
 ;(function() {
 
@@ -52118,6 +52138,7 @@ module.exports = "0.7.2-pre";
     var setBindData = !defineProperty ? noop : function(func, value) {
       descriptor.value = value;
       defineProperty(func, '__bindData__', descriptor);
+      descriptor.value = null;
     };
 
     /**
@@ -56763,7 +56784,7 @@ module.exports = "0.7.2-pre";
      * debugging. See http://www.html5rocks.com/en/tutorials/developertools/sourcemaps/#toc-sourceurl
      *
      * For more information on precompiling templates see:
-     * http://lodash.com/custom-builds
+     * https://lodash.com/custom-builds
      *
      * For more information on Chrome extension sandboxes see:
      * http://developer.chrome.com/stable/extensions/sandboxingEval.html
@@ -57332,7 +57353,7 @@ module.exports = "0.7.2-pre";
      * @memberOf _
      * @type string
      */
-    lodash.VERSION = '2.4.1';
+    lodash.VERSION = '2.4.2';
 
     // add "Chaining" functions to the wrapper
     lodash.prototype.chain = wrapperChain;
@@ -57594,7 +57615,9 @@ var _ = require("../lodash"),
 module.exports = findCycles;
 
 function findCycles(g) {
-  return _.filter(tarjan(g), function(cmpt) { return cmpt.length > 1; });
+  return _.filter(tarjan(g), function(cmpt) {
+    return cmpt.length > 1 || (cmpt.length === 1 && g.hasEdge(cmpt[0], cmpt[0]));
+  });
 }
 
 },{"../lodash":136,"./tarjan":130}],124:[function(require,module,exports){
@@ -58193,6 +58216,8 @@ Graph.prototype.setParent = function(v, parent) {
   if (_.isUndefined(parent)) {
     parent = GRAPH_NODE;
   } else {
+    // Coerce parent to string
+    parent += "";
     for (var ancestor = parent;
          !_.isUndefined(ancestor);
          ancestor = this.parent(ancestor)) {
@@ -58538,9 +58563,24 @@ function read(json) {
 }
 
 },{"./graph":133,"./lodash":136}],136:[function(require,module,exports){
-arguments[4][96][0].apply(exports,arguments)
-},{"dup":96,"lodash":138}],137:[function(require,module,exports){
-module.exports = '1.0.1';
+/* global window */
+
+var lodash;
+
+if (typeof require === "function") {
+  try {
+    lodash = require("lodash");
+  } catch (e) {}
+}
+
+if (!lodash) {
+  lodash = window._;
+}
+
+module.exports = lodash;
+
+},{"lodash":138}],137:[function(require,module,exports){
+module.exports = '1.0.4';
 
 },{}],138:[function(require,module,exports){
 arguments[4][117][0].apply(exports,arguments)
@@ -67932,7 +67972,10 @@ return jQuery;
   module.exports = function() {
     var solver, url;
     url = 'http://hyperinfo.viz.media.kyoto-u.ac.jp/wsgi/websem';
-    solver = function(n, alpha, sigma, s) {
+    solver = function(n, alpha, sigma, s, sigmaFixed) {
+      if (sigmaFixed == null) {
+        sigmaFixed = [];
+      }
       return $.ajax({
         type: 'POST',
         url: url + '/sem',
@@ -67940,6 +67983,7 @@ return jQuery;
           n: n,
           alpha: alpha,
           sigma: sigma,
+          sigma_fixed: sigmaFixed,
           S: s
         }),
         contentType: 'application/json'
