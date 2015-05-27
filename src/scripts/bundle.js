@@ -66,7 +66,7 @@
  * 
  * process:
  *   author: Roman Shtylman <shtylman@gmail.com>
- *   maintainers: coolaj86 <coolaj86@gmail.com>, shtylman <shtylman@gmail.com>
+ *   maintainers: coolaj86 <coolaj86@gmail.com>, defunctzombie <shtylman@gmail.com>
  * 
  * semjs:
  *   license: MIT
@@ -373,7 +373,8 @@ exports.isemDialogImportFile = {
     title: function () { return 'Import File'; },
     encodingUTF8: function () { return 'UTF-8'; },
     encodingSJIS: function () { return 'Shift_JIS'; },
-    fileInput: function () { return 'CSV'; },
+    csvFileInput: function () { return 'CSV'; },
+    graphFileInput: function () { return 'Network (Optional)'; },
     downloadSample: function () { return 'Download a sample'; },
     buttonCancel: function () { return 'Cancel'; },
     buttonPrimary: function () { return 'Import'; }
@@ -425,7 +426,8 @@ exports.isemDialogImportFile = {
     title: function () { return 'ファイル読み込み'; },
     encodingUTF8: function () { return 'UTF-8'; },
     encodingSJIS: function () { return 'Shift_JIS'; },
-    fileInput: function () { return 'CSVファイル'; },
+    csvFileInput: function () { return 'CSVファイル'; },
+    graphFileInput: function () { return 'ネットワークファイル (オプション)'; },
     downloadSample: function () { return 'サンプルファイル'; },
     buttonCancel: function () { return 'キャンセル'; },
     buttonPrimary: function () { return 'OK'; }
@@ -667,7 +669,7 @@ var Renderer = (function (_super) {
             selectedStroke: '#daf984',
             stroke: '#1f1d1e'
         };
-        return egrid.core.egm().dagreRankSep(50).dagreNodeSep(50).backgroundColor(colors.diagramBackground).vertexText(function (d) { return d.label; }).vertexAveilability(function (d) { return d.enabled; }).vertexColor(function (d) {
+        return egrid.core.egm().dagreRankSep(100).dagreNodeSep(50).backgroundColor(colors.diagramBackground).vertexText(function (d) { return d.label; }).vertexAveilability(function (d) { return d.enabled; }).vertexColor(function (d) {
             return d.latent ? colors.latentBackground : colors.observedBackground;
         }).maxTextLength(30).strokeColor(colors.stroke).selectedStrokeColor(colors.selectedStroke).edgeColor(function (u, v) {
             return (graph.get(u, v).coefficient >= 0) ? colors.edgeColor1 : colors.edgeColor2;
@@ -675,6 +677,8 @@ var Renderer = (function (_super) {
             return edgeWidthScale(Math.abs(graph.get(u, v).coefficient));
         }).edgeText(function (u, v) {
             return edgeTextFormat(graph.get(u, v).coefficient);
+        }).edgeVisibility(function (u, v) {
+            return !graph.get(v, u);
         });
     };
     /**
@@ -695,6 +699,10 @@ var Renderer = (function (_super) {
             variableIds[i] = u;
             return graph.get(u);
         });
+        var edges = graph.edges().filter(function (edge) {
+            var u = edge[0], v = edge[1];
+            return graph.get(u).enabled && graph.get(v).enabled;
+        });
         var n = variables.length;
         if (n === 1) {
             // solver() returns an error when a length is 1.
@@ -707,17 +715,23 @@ var Renderer = (function (_super) {
             log.warn(log.t(), __filename, '#calculate(), variables.length < 1, aborting');
             return { then: function (cb) { return cb(); } };
         }
-        var alpha = graph.edges().filter(function (edge) {
-            return graph.get(edge[0]).enabled || graph.get(edge[1]).enabled;
+        var alpha = edges.filter(function (edge) {
+            var u = edge[0], v = edge[1];
+            return !graph.get(v, u);
         }).map(function (edge) {
             return [variableIndices[edge[0]], variableIndices[edge[1]]];
         });
-        var sigma = vertices.filter(function (u) {
+        var sigma = [].concat(vertices.filter(function (u) {
             return graph.outDegree(u) > 0;
         }).map(function (u) {
             var i = variableIndices[u];
             return [i, i];
-        });
+        }), edges.filter(function (edge) {
+            var u = edge[0], v = edge[1];
+            return u < v && graph.get(v, u);
+        }).map(function (edge) {
+            return [variableIndices[edge[0]], variableIndices[edge[1]]];
+        }));
         var sigmaFixed = vertices.filter(function (u) {
             return graph.outDegree(u) === 0;
         }).map(function (u) {
@@ -852,20 +866,21 @@ var Store = (function (_super) {
     /**
      * @param {*} _ - event non-use
      * @param {Array<{string: string}>} importedFile
+     * @param {GraphObject} graph
      * @returns {void}
      */
-    Store.prototype.importFile = function (_, importedFile) {
+    Store.prototype.importFile = function (_, importedFile, graph) {
         log.trace(log.t(), __filename, '#importFile()');
         try {
-            var result = Converter.convert(importedFile);
+            var values = Converter.convert(importedFile);
         }
         catch (e) {
             return this.publish(e);
         }
-        if (!result) {
+        if (!values) {
             return this.publish(new Error('There is no converted result from the imported file'));
         }
-        this.replaceAllVertex(result);
+        this.replaceAllVertex(values, graph);
         this.publish();
     };
     /**
@@ -971,12 +986,24 @@ var Store = (function (_super) {
     /**
      * @returns {void}
      */
-    Store.prototype.replaceAllVertex = function (result) {
+    Store.prototype.replaceAllVertex = function (values, graph) {
         var _this = this;
         this.removeAllVertex();
-        result.labels.forEach(function (label, i) {
-            return Vertex.addObservedVariable(_this.graph, label, result.dataArray[i]);
+        values.labels.forEach(function (label, i) {
+            Vertex.addObservedVariable(_this.graph, label, values.dataArray[i]);
         });
+        if (graph) {
+            var labels = {};
+            this.graph.vertices().forEach(function (u) {
+                labels[_this.graph.get(u).label] = u;
+            });
+            graph.links.forEach(function (link) {
+                var u = labels[graph.nodes[link.source].text], v = labels[graph.nodes[link.target].text];
+                if (u != null && v != null) {
+                    _this.graph.addEdge(u, v);
+                }
+            });
+        }
         this.updateStore();
     };
     /**
@@ -1427,14 +1454,16 @@ var Controller = (function () {
      * @constructor
      * @ngInject
      */
-    function Controller($rootScope, $scope) {
+    function Controller($rootScope, $scope, $q) {
         this.$rootScope = $rootScope;
         this.$scope = $scope;
+        this.$q = $q;
         // DO NOT call #init() here because $scope hasn't been set yet.
     }
     Controller.prototype.init = function () {
         log.trace(log.t(), __filename, '#init()', this.$scope);
-        this.$scope.encoding = 'utf-8';
+        this.$scope.csvEncoding = 'utf-8';
+        this.$scope.graphEncoding = 'utf-8';
         this.$scope.localized = localized(this.$scope.locale(), directiveName);
         this.addKeyboardHandler();
     };
@@ -1456,24 +1485,31 @@ var Controller = (function () {
      * @returns {void}
      */
     Controller.prototype.importFile = function () {
-        log.trace(log.t(), __filename, '#importFile()');
-        var reader = new FileReader();
-        reader.onload = this.fileReaderOnLoad();
-        var file = document.getElementById('file-input').files[0];
-        reader.readAsText(file, this.$scope.encoding);
-        this.$scope.dialog.close();
-    };
-    /**
-     * This when used to load a file is extracted for testable.
-     *
-     * @returns {Function}
-     */
-    Controller.prototype.fileReaderOnLoad = function () {
         var _this = this;
-        return function (e) {
-            var data = d3.csv.parse(e.target.result);
-            _this.$rootScope.$broadcast(constants.IMPORT_FILE, data);
+        log.trace(log.t(), __filename, '#importFile()');
+        var csvDeferred = this.$q.defer();
+        var csvReader = new FileReader();
+        csvReader.onload = function (e) {
+            csvDeferred.resolve(d3.csv.parse(e.target.result));
         };
+        var csvFile = document.getElementById('csv-file-input').files[0];
+        csvReader.readAsText(csvFile, this.$scope.csvEncoding);
+        var graphDeferred = this.$q.defer();
+        var graphReader = new FileReader();
+        graphReader.onload = function (e) {
+            graphDeferred.resolve(JSON.parse(e.target.result));
+        };
+        var graphFile = document.getElementById('graph-file-input').files[0];
+        if (graphFile) {
+            graphReader.readAsText(graphFile, this.$scope.graphEncoding);
+        }
+        else {
+            graphDeferred.resolve(null);
+        }
+        this.$q.all([csvDeferred.promise, graphDeferred.promise]).then(function (result) {
+            _this.$rootScope.$broadcast(constants.IMPORT_FILE, result[0], result[1]);
+        });
+        this.$scope.dialog.close();
     };
     /**
      * @returns {void}
@@ -3369,7 +3405,7 @@ module.exports = 'ngRoute';
 (function (global){
 
 ; require("/home/travis/build/likr/interactive-sem/node_modules/jquery/dist/jquery.js");
-;__browserify_shim_require__=require;(function browserifyShim(module, exports, require, define, browserify_shim__define__module__export__) {
+; var __browserify_shim_require__=require;(function browserifyShim(module, exports, require, define, browserify_shim__define__module__export__) {
 /**
  * @license AngularJS v1.3.15
  * (c) 2010-2014 Google, Inc. http://angularjs.org
@@ -29997,32 +30033,64 @@ function isUndefined(arg) {
 var process = module.exports = {};
 var queue = [];
 var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
 
 function drainQueue() {
     if (draining) {
         return;
     }
+    var timeout = setTimeout(cleanUpNextTick);
     draining = true;
-    var currentQueue;
+
     var len = queue.length;
     while(len) {
         currentQueue = queue;
         queue = [];
-        var i = -1;
-        while (++i < len) {
-            currentQueue[i]();
+        while (++queueIndex < len) {
+            currentQueue[queueIndex].run();
         }
+        queueIndex = -1;
         len = queue.length;
     }
+    currentQueue = null;
     draining = false;
+    clearTimeout(timeout);
 }
+
 process.nextTick = function (fun) {
-    queue.push(fun);
-    if (!draining) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
         setTimeout(drainQueue, 0);
     }
 };
 
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
 process.title = 'browser';
 process.browser = true;
 process.env = {};
@@ -58586,7 +58654,7 @@ module.exports = '1.0.4';
 arguments[4][117][0].apply(exports,arguments)
 },{"dup":117}],139:[function(require,module,exports){
 (function (global){
-;__browserify_shim_require__=require;(function browserifyShim(module, exports, require, define, browserify_shim__define__module__export__) {
+; var __browserify_shim_require__=require;(function browserifyShim(module, exports, require, define, browserify_shim__define__module__export__) {
 /*!
  * jQuery JavaScript Library v2.1.3
  * http://jquery.com/
