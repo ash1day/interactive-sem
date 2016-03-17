@@ -34,7 +34,21 @@ isem-main-column {
   position: absolute;
   box-sizing: border-box;
   height: calc(100vh - 48px - 24px);
-  width: calc(100% - 300px);
+  width: calc(100% - 300px*2);
+}
+isem-path-column {
+  float: left;
+  height: calc(100vh - 48px - 24px);
+  width: 300px;
+  background-color: #dde2e8;
+  border-right: solid 1px #b8b8b8;
+}
+isem-path-column table {
+  margin-top: 80px;
+  margin-left: 40px;
+}
+isem-path-column table tr {
+  line-height: 2em;
 }
 isem-sub-column {
   float: left;
@@ -82,18 +96,24 @@ isem-network-diagram {
   width: 100%;
   height: calc(100vh - 48px - 24px);
 }
-isem-sub-tool-group {
+isem-sub-tool-group,
+.isem-sub-tool-group {
   z-index: 200;
   position: absolute;
-  bottom: 0;
+  top: 0;
   width: inherit;
   height: 48px;
   background-color: #e8e9e8;
   border-top: solid 1px #c7c7c7;
   border-right: inherit;
 }
-isem-sub-tool-group .glyphicon {
+isem-sub-tool-group .glyphicon,
+.isem-sub-tool-group .glyphicon {
   margin: 15px 0 0 40px;
+}
+isem-sub-tool-group .glyphicon-eye-open,
+.isem-sub-tool-group .glyphicon-eye-open {
+  cursor: pointer;
 }
 isem-network-diagram-tool-group {
   position: absolute;
@@ -148,9 +168,12 @@ isem-variable > div {
   height: calc(100vh - 48px - 24px - 48px) /* do not specify 'width: 100%' because of the display position of scroll bar shifted */;
 }
 isem-variable ul {
-  margin-top: 24px;
+  margin-top: 80px;
   list-style: none;
 }
 isem-variable ul li {
   margin-top: 6px;
+}
+isem-variable ul li .glyphicon-eye-open {
+  cursor: pointer;
 }
