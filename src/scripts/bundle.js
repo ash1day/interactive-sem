@@ -225,7 +225,7 @@ var Controller = (function () {
         ImportFile.open();
     };
     Controller.prototype.open = function (id) {
-        location.href = "project/" + id;
+        location.href = "#/project/" + id;
     };
     Controller.prototype.remove = function (id) {
         if (confirm("are you sure?")) {
@@ -1766,7 +1766,7 @@ var Controller = (function () {
         this.$q.all([csvDeferred.promise, graphDeferred.promise]).then(function (result) {
             _this.$rootScope.$broadcast(constants.IMPORT_FILE, result[0], result[1]);
             storage.save(_this.projectName, result[0], result[1]).then(function (item) {
-                location.href = "project/" + item.data.id;
+                location.href = "#/project/" + item.data.id;
             });
         });
         this.$scope.dialog.close();
